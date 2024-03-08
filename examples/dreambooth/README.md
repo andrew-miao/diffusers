@@ -14,6 +14,7 @@ Before running the scripts, make sure to install the library's training dependen
 
 To make sure you can successfully run the latest versions of the example scripts, we highly recommend **installing from source** and keeping the install up to date as we update the example scripts frequently and install some example-specific requirements. To do this, execute the following steps in a new virtual environment:
 ```bash
+git clone https://github.com/google/dreambooth
 cd diffusers/examples/dreambooth/
 conda env create -f environment_tpu.yml
 conda activate diffuser-tpu
