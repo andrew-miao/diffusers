@@ -1,8 +1,9 @@
 transformers>=4.25.1
-flax
+flax[tpu]
 optax
 torch
 torchvision
 ftfy
 tensorboard
 Jinja2
+datasets

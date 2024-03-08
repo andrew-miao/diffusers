@@ -16,6 +16,8 @@ To make sure you can successfully run the latest versions of the example scripts
 ```bash
 git clone https://github.com/huggingface/diffusers
 cd diffusers
+conda create -n diffuser python=3.10
+conda activate diffuser
 pip install -e .
 ```
 
