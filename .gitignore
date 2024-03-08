@@ -1,5 +1,9 @@
 # Initially taken from GitHub's Python gitignore file
 
+# ignore dreambooth images
+examples/dreambooth/path-to-class-images
+examples/dreambooth/path-to-save-model
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
