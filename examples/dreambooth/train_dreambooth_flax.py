@@ -35,7 +35,7 @@ from diffusers.utils import check_min_version
 
 
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
-check_min_version("0.27.0.dev0")
+# check_min_version("0.27.0.dev0")
 
 # Cache compiled models across invocations of this script.
 cc.initialize_cache(os.path.expanduser("~/.cache/jax/compilation_cache"))
@@ -695,7 +695,7 @@ def main():
 
     if jax.process_index() == 0:
         checkpoint()
-
+    # TODO: Add evaluation and push to GCP
 
 if __name__ == "__main__":
     main()
