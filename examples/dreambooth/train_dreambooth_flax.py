@@ -3,6 +3,7 @@ import logging
 import math
 import os
 from pathlib import Path
+from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -32,6 +33,8 @@ from diffusers import (
 )
 from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
 from diffusers.utils import check_min_version
+
+from google.cloud import storage
 
 
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
@@ -199,6 +202,8 @@ def parse_args():
         ),
     )
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
+    parser.add_argument("--bucket", type=str, default="booth_bucket", help="Google Cloud Bucket to store the data.")
+
 
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -216,6 +221,18 @@ def parse_args():
 
     return args
 
+def upload_images(localpath, bucket_name, destination_blob_name):
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+    for filename in os.listdir(localpath):
+        if filename.endswith(".jpg") or filename.endswith(".png"):
+            local_file = os.path.join(localpath, filename)
+            blob_name = os.path.join(destination_blob_name, filename)
+            blob = bucket.blob(blob_name)
+            # upload the file to the cloud
+            blob.upload_from_filename(local_file)
+            print(f"Uploaded {local_file} to gs://{bucket_name}/{blob_name}.")
 
 class DreamBoothDataset(Dataset):
     """
@@ -695,7 +712,44 @@ def main():
 
     if jax.process_index() == 0:
         checkpoint()
-    # TODO: Add evaluation and push to GCP
+    
+    # ----------------------- Loading Models ----------------------- #
+    def load_checkpoint(step=None):
+        # Load saved models
+        outdir = os.path.join(args.output_dir, str(step)) if step else args.output_dir
+        pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
+            outdir, 
+            safety_checker=None, 
+            revision=args.revision
+        )
+        return pipeline, params
+    
+    # ----------------------- Evaluation ----------------------- #
+    local_path = "logs/" + "generated_images"
+    pipeline, params = load_checkpoint()
+    test_prompts = ['a photo of sks dog is swimming',
+                    'a photo of sks dog is sleeping',
+                    'a photo of sks dog is playing with a ball']
+    num_test_images_per_prompt = 16
+    for prompt in test_prompts:
+        prompt_ids = pipeline.prepare_inputs(prompt)
+        prompt_ids = shard(prompt_ids)
+        p_params = jax_utils.replicate(params)
+        rng = jax.random.split(rng)[0]
+        for i in tqdm(range(num_test_images_per_prompt), desc="Generating images", position=0):
+            sample_rng = jax.random.split(rng, jax.device_count())
+            images = pipeline(prompt_ids, p_params, sample_rng, jit=True).images
+            images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
+            images = pipeline.numpy_to_pil(np.array(images))
+            # ----------------------- Save images ----------------------- #
+            for j, image in enumerate(images):
+                image_filename = local_path + f"{prompt}-{i}-{j}.jpg"
+                images.save(image_filename)
+                
+    print(f"Inference images saved to {local_path}")
+    # ----------------------- Upload images to Google Cloud ----------------------- #
+    upload_images(local_path, args.bucket, "generated_images")
+    
 
 if __name__ == "__main__":
     main()

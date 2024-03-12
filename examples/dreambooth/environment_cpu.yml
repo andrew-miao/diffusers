@@ -1,0 +1,31 @@
+name: diffuser-cpu
+channels:
+- defaults
+- conda-forge
+- pytorch
+dependencies:
+- python=3.10
+- pip
+- pip:
+    - -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+    - --extra-index-url https://download.pytorch.org/whl/cpu
+    - torch
+    - torchvision
+    - diffusers[flax]
+    - transformers
+    - numpy 
+    - tqdm 
+    - flax
+    - optax
+    - jax[cpu]
+    - jaxlib
+    - optax
+    - typed-argument-parser
+    - gitpython
+    - google-cloud-storage
+    - gcsfs
+    - fsspec
+    - h5py
+    - datasets
+    - matplotlib
+    - latex
