@@ -395,6 +395,9 @@ def main():
                     image.save(image_filename)
 
             del pipeline
+    
+        # ------------------------ Upload images to Google Cloud ------------------------ #
+        upload_images(class_images_dir, args.bucket, "class_images")
 
     # Handle the repository creation
     if jax.process_index() == 0:
