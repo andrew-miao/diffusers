@@ -358,6 +358,32 @@ def main():
 
     rng = jax.random.PRNGKey(args.seed)
 
+    # DEBUG
+    # pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
+    #             args.pretrained_model_name_or_path, safety_checker=None, revision=args.revision
+    #         )
+    # pipeline.set_progress_bar_config(disable=True)
+    # sample_dataset = PromptDataset(args.class_prompt, 16)
+    # total_sample_batch_size = args.sample_batch_size * jax.local_device_count()
+    # sample_dataloader = torch.utils.data.DataLoader(sample_dataset, batch_size=total_sample_batch_size)
+    # for example in tqdm(
+    #                 sample_dataloader, desc="DEBUGGING", disable=not jax.process_index() == 0
+    # ):
+    #     print("example prompt:", example["prompt"])
+    #     prompt_ids = pipeline.prepare_inputs(example["prompt"])
+    #     print(f"prompt_ids.shape = {prompt_ids.shape}")
+    #     prompt_ids = shard(prompt_ids)
+    #     print(f"after shard prompt_ids.shape = {prompt_ids.shape}")
+    #     p_params = jax_utils.replicate(params)
+    #     rng = jax.random.split(rng)[0]
+    #     sample_rng = jax.random.split(rng, jax.device_count())
+    #     images = pipeline(prompt_ids, p_params, sample_rng, jit=True).images
+    #     print(f"type of images {type(images)}")
+    #     images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
+    #     images = pipeline.numpy_to_pil(np.array(images))
+    #     print(f"After type of images {type(images)}")
+    # del pipeline
+
     if args.with_prior_preservation:
         class_images_dir = Path(args.class_data_dir)
         if not class_images_dir.exists():
@@ -379,7 +405,7 @@ def main():
 
             for example in tqdm(
                 sample_dataloader, desc="Generating class images", disable=not jax.process_index() == 0
-            ):
+            ):  
                 prompt_ids = pipeline.prepare_inputs(example["prompt"])
                 prompt_ids = shard(prompt_ids)
                 p_params = jax_utils.replicate(params)
@@ -396,8 +422,8 @@ def main():
 
             del pipeline
     
-        # ------------------------ Upload images to Google Cloud ------------------------ #
-        upload_images(class_images_dir, args.bucket, "class_images")
+            # ------------------------ Upload images to Google Cloud ------------------------ #
+            upload_images(class_images_dir, args.bucket, "class_images")
 
     # Handle the repository creation
     if jax.process_index() == 0:
@@ -663,6 +689,7 @@ def main():
         )
 
         outdir = os.path.join(args.output_dir, str(step)) if step else args.output_dir
+        print(f"Saving model to {outdir}")
         pipeline.save_pretrained(
             outdir,
             params={
@@ -715,44 +742,7 @@ def main():
 
     if jax.process_index() == 0:
         checkpoint()
-    
-    # ----------------------- Loading Models ----------------------- #
-    def load_checkpoint(step=None):
-        # Load saved models
-        outdir = os.path.join(args.output_dir, str(step)) if step else args.output_dir
-        pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
-            outdir, 
-            safety_checker=None, 
-            revision=args.revision
-        )
-        return pipeline, params
-    
-    # ----------------------- Evaluation ----------------------- #
-    local_path = "logs/" + "generated_images"
-    pipeline, params = load_checkpoint()
-    test_prompts = ['a photo of sks dog is swimming',
-                    'a photo of sks dog is sleeping',
-                    'a photo of sks dog is playing with a ball']
-    num_test_images_per_prompt = 16
-    for prompt in test_prompts:
-        prompt_ids = pipeline.prepare_inputs(prompt)
-        prompt_ids = shard(prompt_ids)
-        p_params = jax_utils.replicate(params)
-        rng = jax.random.split(rng)[0]
-        for i in tqdm(range(num_test_images_per_prompt), desc="Generating images", position=0):
-            sample_rng = jax.random.split(rng, jax.device_count())
-            images = pipeline(prompt_ids, p_params, sample_rng, jit=True).images
-            images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
-            images = pipeline.numpy_to_pil(np.array(images))
-            # ----------------------- Save images ----------------------- #
-            for j, image in enumerate(images):
-                image_filename = local_path + f"{prompt}-{i}-{j}.jpg"
-                images.save(image_filename)
-                
-    print(f"Inference images saved to {local_path}")
-    # ----------------------- Upload images to Google Cloud ----------------------- #
-    upload_images(local_path, args.bucket, "generated_images")
-    
+
 
 if __name__ == "__main__":
     main()
